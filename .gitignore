@@ -1,0 +1,15 @@
+# Bob's Secret Filter (Do not commit these)
+.env
+.env.local
+*.log
+*.tmp
+*.temp
+node_modules/
+__pycache__/
+.DS_Store
+Thumbs.db
+
+# Keep Bob's personal diary private if we make one
+bob_diary.txt
+secrets/
+keys/
