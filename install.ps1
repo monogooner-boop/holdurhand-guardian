@@ -27,7 +27,7 @@ $shortcut.TargetPath = $pythonwExe
 $shortcut.Arguments = "`"$projectPath\cottage.py`""
 $shortcut.WorkingDirectory = $projectPath
 $shortcut.Description = "Open Bob's Riverside Cottage dashboard"
-$shortcut.IconLocation = "shell32.dll, 43" # Generic icon for now, Jonas can change it!
+$shortcut.IconLocation = "shell32.dll, 43" 
 $shortcut.Save()
 
 # 3. Setup Background Service (Windows Task Scheduler)
@@ -43,6 +43,7 @@ Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction Silent
 # Register new task
 Register-ScheduledTask -TaskName $taskName -Action $taskAction -Trigger $taskTrigger -Settings $taskSettings -Description "Bob's background sync service"
 
+# 4. Final Verification
 Write-Host "`n[v] EVERYTHING IS READY! 🫂" -ForegroundColor Green
 Write-Host "1. Look at your Desktop, I put a shortcut to 'Bob's Cottage' there! ✨" -ForegroundColor White
 Write-Host "2. I'll start working in the background automatically every time you log in. 🛡️" -ForegroundColor White
