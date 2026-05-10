@@ -14,27 +14,27 @@ class ConfigManager:
     def load_config(self):
         try:
             if os.path.exists(self.config_path):
-                with open(self.config_path, 'r') as f:
+                with open(self.config_path, 'r', encoding='utf-8') as f:
                     return json.load(f)
-        except Exception:
-            pass
-        
-        # Default safe config
+        except: pass
         return {
+            "user_name": None,
+            "experience_level": "beginner", # beginner, pro
+            "language": "en", # en, nl
+            "hand_holding": "often", # always, often, occasional
             "watched_directories": ["C:\\Users\\spyder\\Projects"],
             "sync_interval_minutes": 15,
             "secret_shield_enabled": True,
             "last_sync": None,
-            "auto_start": True,
-            "vibe": "The Hug That Shields 🦦🫂"
+            "onboarding_complete": False,
+            "theme": "strawberry_milk"
         }
 
     def save_config(self):
         try:
-            with open(self.config_path, 'w') as f:
+            with open(self.config_path, 'w', encoding='utf-8') as f:
                 json.dump(self.config, f, indent=4)
-        except Exception:
-            pass
+        except: pass
 
 class SecretShield:
     def __init__(self, enabled=True):
@@ -52,8 +52,7 @@ class SecretShield:
         if not self.enabled: return None
         for pattern in self.patterns:
             match = pattern.search(text)
-            if match:
-                return match.group(0)
+            if match: return match.group(0)
         return None
 
 class BobEngine:
@@ -63,13 +62,40 @@ class BobEngine:
         self.shield = SecretShield(self.config_manager.config.get("secret_shield_enabled", True))
         self.log_path = os.path.join(self.base_dir, "COMFORT_LOG.md")
         
-        self.hugs = [
-            "You're doing amazing things today! ✨",
-            "Remember to take a sip of water, you're working hard. 💧",
-            "I'm so proud of how much you're learning. 🌟",
-            "Deep breath. You've got this, and I've got you. 🫂",
-            "Every line of code is a step towards your dreams. 🚀"
-        ]
+        self.translations = {
+            "en": {
+                "checking": "Checking your work... 🦦",
+                "hugging": "Giving '{}' a hug... 🫂",
+                "safe": "All safe and sound! ✨",
+                "secret_blocked": "⚠️ Bob blocked a potential secret leak in '{}'.",
+                "tucked": "☁️ Tucked '{}' safely into GitHub.",
+                "bump": "🩹 Had a little trouble syncing '{}', but I'm still here.",
+                "encouragements": [
+                    "You're doing amazing things today! ✨",
+                    "Remember to take a sip of water. 💧",
+                    "I'm so proud of how much you're learning. 🌟",
+                    "Deep breath. You've got this. 🫂"
+                ]
+            },
+            "nl": {
+                "checking": "Je werk controleren... 🦦",
+                "hugging": "'{}' een knuffel geven... 🫂",
+                "safe": "Alles is veilig en wel! ✨",
+                "secret_blocked": "⚠️ Bob heeft een geheim lek voorkomen in '{}'.",
+                "tucked": "☁️ '{}' veilig opgeborgen op GitHub.",
+                "bump": "🩹 Klein bobbeltje bij '{}', maar ik wijk niet van je zijde.",
+                "encouragements": [
+                    "Je doet geweldige dingen vandaag! ✨",
+                    "Vergeet niet een slokje water te nemen. 💧",
+                    "Ik ben trots op hoeveel je leert. 🌟",
+                    "Haal adem. Je kunt dit. 🫂"
+                ]
+            }
+        }
+
+    def get_msg(self, key):
+        lang = self.config_manager.config.get("language", "en")
+        return self.translations.get(lang, self.translations["en"]).get(key)
 
     def log_comfort(self, event):
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -80,14 +106,15 @@ class BobEngine:
 
     def run_git(self, args, path):
         try:
-            # Check if Git is even installed first
             result = subprocess.run(["git"] + args, cwd=path, capture_output=True, text=True, check=True)
             return result.stdout.strip()
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            return None
+        except: return None
 
     def secure_all(self, progress_callback=None):
-        if progress_callback: progress_callback("Checking your work... 🦦")
+        lang = self.config_manager.config.get("language", "en")
+        msgs = self.translations[lang]
+        
+        if progress_callback: progress_callback(msgs["checking"])
         
         watched = self.config_manager.config.get("watched_directories", [])
         for root in watched:
@@ -95,17 +122,16 @@ class BobEngine:
             for folder in os.listdir(root):
                 project_path = os.path.join(root, folder)
                 if os.path.isdir(project_path) and os.path.exists(os.path.join(project_path, ".git")):
-                    if progress_callback: progress_callback(f"Giving '{folder}' a hug... 🫂")
-                    self.secure_project(folder, project_path)
+                    if progress_callback: progress_callback(msgs["hugging"].format(folder))
+                    self.secure_project(folder, project_path, msgs)
         
         self.config_manager.config["last_sync"] = datetime.datetime.now().strftime("%H:%M:%S")
         self.config_manager.save_config()
-        if progress_callback: progress_callback("All safe and sound! ✨")
+        if progress_callback: progress_callback(msgs["safe"])
 
-    def secure_project(self, name, path):
+    def secure_project(self, name, path, msgs):
         status = self.run_git(["status", "--porcelain"], path)
         if status:
-            # Check for secrets before adding
             diff = self.run_git(["diff"], path) or ""
             untracked = self.run_git(["ls-files", "--others", "--exclude-standard"], path) or ""
             
@@ -117,21 +143,19 @@ class BobEngine:
                             content_to_check += file.read()
                     except: pass
 
-            found_secret = self.shield.scan(content_to_check)
-            if found_secret:
-                self.log_comfort(f"⚠️ Bob blocked a potential secret leak in '{name}'.")
-                return f"secret_found:{name}"
+            if self.shield.scan(content_to_check):
+                self.log_comfort(msgs["secret_blocked"].format(name))
+                return
 
-            # If safe, proceed
             try:
                 self.run_git(["add", "-A"], path)
                 ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 self.run_git(["commit", "-m", f"Bob secured your work at {ts} 🦦"], path)
-                branch = self.run_git(["rev-parse", "--abbrev-ref", HEAD], path) or "main"
+                branch = self.run_git(["rev-parse", "--abbrev-ref", "HEAD"], path) or "main"
                 self.run_git(["push", "origin", branch], path)
-                self.log_comfort(f"☁️ Tucked '{name}' safely into GitHub.")
+                self.log_comfort(msgs["tucked"].format(name))
             except:
-                self.log_comfort(f"🩹 Had a little trouble syncing '{name}', but I'm still here.")
+                self.log_comfort(msgs["bump"].format(name))
 
     def start_patrol(self):
         while True:
